@@ -1,62 +1,83 @@
 pipeline {
-    agent any 
+    agent any
+
     stages {
-        stage ('clone') {
+        stage('Clone') {
             steps {
+                echo 'Cloning source code'
                 git branch: 'main', url: 'https://github.com/DuVanSang/QLTV1.git'
             }
         }
 
-        stage('restore package') {
+        stage('Restore Packages') {
             steps {
-                echo 'Restore package'
+                echo 'Restoring NuGet packages...'
                 bat 'dotnet restore'
             }
         }
 
-        stage ('build') {
+        stage('Build') {
             steps {
-                echo 'build project netcore'
-                bat 'dotnet build  --configuration Release'
+                echo 'Building the project...'
+                bat 'dotnet build --configuration Release'
             }
         }
 
-        stage ('tests') {
+        stage('Run Tests') {
             steps {
-                echo 'running test...'
+                echo 'Running unit tests...'
                 bat 'dotnet test --no-build --verbosity normal'
             }
         }
 
-        stage ('public den t thu muc') {
+        stage('Publish to Folder') {
             steps {
-                echo 'Publishing...'
-                bat 'dotnet publish -c Release -o ./publish'
+                echo 'Cleaning old publish folder...'
+                bat 'if exist "%WORKSPACE%\\publish" rd /s /q "%WORKSPACE%\\publish"'
+                
+                echo 'Publishing to temporary folder...'
+                bat 'dotnet publish -c Release -o "%WORKSPACE%\\publish"'
             }
         }
 
-        stage('Publish') {
+        stage('Copy to IIS Folder') {
             steps {
-                echo 'public 2 running folder'
-                
-                // Stop IIS to allow file overwrite
+                echo 'Stopping IIS...'
                 bat 'iisreset /stop'
-                
-                // Copy published files to target folder
-                bat 'xcopy "%WORKSPACE%\\publish" "D:\\QLTV1" /E /Y /I /R'
+
+                echo 'Cleaning existing deploy folder...'
+                bat 'if exist D:\\QLTV1 rd /s /q D:\\QLTV1'
+
+                echo 'Creating IIS folder...'
+                bat 'mkdir D:\\QLTV1'
+
+                echo 'Copying to IIS folder...'
+                bat 'xcopy /E /Y /I /R "%WORKSPACE%\\publish\\*" "D:\\QLTV1\\"'
+
+                echo 'Starting IIS again...'
+                bat 'iisreset /start'
             }
         }
 
-        stage('Deploy to IIS') {
+        stage('Ensure IIS Site Exists') {
             steps {
                 powershell '''
-                # Tạo website nếu chưa có
-                Import-Module WebAdministration
-                if (-not (Test-Path IIS:\\Sites\\QLTV1)) {
-                    New-Website -Name "QLTV1" -Port 88 -PhysicalPath "D:\\QLTV1"
-                }
+                    Import-Module WebAdministration
+
+                    $siteName = "QLTV1"
+                    $sitePath = "D:\\QLTV1"
+                    $sitePort = 88
+
+                    if (-not (Test-Path "IIS:\\Sites\\$siteName")) {
+                        New-Website -Name $siteName -Port $sitePort -PhysicalPath $sitePath -Force
+                    } else {
+                        Write-Host "Website $siteName already exists"
+                    }
                 '''
             }
         }
     }
 }
+
+
+                   
