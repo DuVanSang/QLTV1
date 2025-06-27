@@ -35,11 +35,15 @@ pipeline {
             }
         }
 
-        stage ('Publish') {
+        stage('Publish') {
             steps {
                 echo 'public 2 running folder'
-                //iisreset /stop // stop iis de ghi de file 
-                bat 'xcopy "%WORKSPACE%\\publish" /E /Y /I /R "D:\\QLTV1"'
+                
+                // Stop IIS to allow file overwrite
+                bat 'iisreset /stop'
+                
+                // Copy published files to target folder
+                bat 'xcopy "%WORKSPACE%\\publish" "D:\\QLTV1" /E /Y /I /R'
             }
         }
 
